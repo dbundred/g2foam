@@ -1,0 +1,90 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2606                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile {
+  version 2.0;
+  format ascii;
+  class dictionary;
+  object controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+application sprayFoam;
+
+startFrom startTime;
+
+startTime 0;
+
+stopAt endTime;
+
+// ECN Spray G2: 0.78 ms hydraulic injection + post-injection mixing up to 1.5
+// ms
+endTime 0.0015;
+
+// Initial / nominal time step (s)
+deltaT 1.0e-06;
+
+writeControl adjustable;
+
+// Write output fields every 0.1 ms (1.0e-4 s)
+writeInterval 0.0001;
+
+purgeWrite 0;
+
+writeFormat binary;
+
+writePrecision 6;
+
+writeCompression off;
+
+timeFormat general;
+
+timePrecision 6;
+
+// Set to 'yes' for automatic Courant-controlled time stepping, or 'no' for
+// fixed deltaT
+adjustTimeStep yes;
+
+// Maximum Eulerian gas-phase Courant number (increase e.g. to 0.5-1.0 for
+// larger steps)
+maxCo 0.1;
+
+// Maximum time-step size cap (s)
+maxDeltaT 1.0e-05;
+
+runTimeModifiable yes;
+
+functions {
+  distribution1 {
+    // Mandatory entries
+    type particleDistribution;
+    libs (fieldFunctionObjects);
+    cloud sprayCloud;
+    nameVsBinWidth ((d 5e-6) (U 10));
+    setFormat raw;
+
+    // Optional entries
+    tagField none;
+
+    // Optional (inherited) entries
+    writePrecision 10;
+    writeToFile true;
+    useUserTime true;
+
+    region region0;
+    enabled true;
+    log true;
+    timeStart 0;
+    timeEnd 1000;
+    executeControl timeStep;
+    executeInterval 1;
+    writeControl writeTime;
+    writeInterval -1;
+  }
+}
+
+// ************************************************************************* //

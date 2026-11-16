@@ -1,0 +1,245 @@
+/*--------------------------------*-C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2606                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile {
+  version 2.0;
+  format ascii;
+  class dictionary;
+  object sprayCloudProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+// ECN Spray G2 (Flash-Boiling 8-Hole GDI Injector, Iso-Octane IC8H18)
+// -Fuel temperature at nozzle: T0 = 363 K (90 degC)
+// -Ambient pressure: 50 kPa (0.5 bar), Ambient temperature: 333 K (60 degC)
+// -8-hole symmetric VCO GDI nozzle:
+//     * Orifice diameter: d = 0.165 mm (1.65e-4 m)
+//     * Drill angle: 37 deg from injector axis (-y)
+//     * Total injected mass: 10 mg (1.25 mg = 1.25e-6 kg per hole)
+//     * Hydraulic injection duration: 0.78 ms (7.8e-4 s)
+
+solution {
+  active true;
+  coupled true;
+  transient yes;
+  cellValueSourceCorrection on;
+  maxCo 0.3;
+
+  sourceTerms {
+    schemes {
+      rho explicit 1;
+      U explicit 1;
+      Yi explicit 1;
+      h explicit 1;
+      radiation explicit 1;
+    }
+  }
+
+  interpolationSchemes {
+    rho cell;
+    U cellPoint;
+    thermo:mu cell;
+    T cell;
+    Cp cell;
+    kappa cell;
+    p cell;
+  }
+
+  integrationSchemes {
+    U Euler;
+    T analytical;
+  }
+}
+
+constantProperties {
+  // ECN Spray G2 Fuel Temperature: 90 degC = 363 K
+  // (Note: at 50 kPa ambient, IC8H18 boiling point is ~300.6 K, so 363 K is
+  // superheated)
+  T0 363;
+
+  // Placeholders for rho0 and Cp0 (automatically reset from IC8H18 liquid
+  // properties at T0)
+  rho0 692;
+  Cp0 2090;
+
+  constantVolume false;
+}
+
+subModels {
+  particleForces { sphereDrag; }
+
+  // Shared ECN Spray G2 per-hole parameters (8 holes @ 37 deg drill angle)
+  holeSettings {
+    type coneNozzleInjection;
+    SOI 0;
+    massTotal 1.25e-6; // 1.25 mg per hole (10 mg total across 8 holes)
+    parcelBasisType mass;
+    injectionMethod disc;
+    flowType flowRateAndDischarge;
+    outerDiameter 1.65e-4; // 165 um nominal ECN Spray G orifice diameter
+    innerDiameter 0;
+    duration 7.8e-4;          // 0.78 ms hydraulic injection duration
+    parcelsPerSecond 64000000; // 64M parcels/s per hole (~399,360 parcels total for
+                               // 8 holes, 64x relative to 4 mm case)
+
+    // Normalized ECN Spray G hydraulic rate-of-injection (ROI) profile (0 to
+    // 0.78 ms)
+    flowRateProfile table
+    (
+        (0 0.0)
+        (4.0e-05 1.0)
+        (7.0e-04 1.0)
+        (7.8e-04 0.0)
+        (1000 0.0)
+    );
+
+    Cd constant 0.8; // Discharge coefficient
+
+    thetaInner constant 0.0;  // Solid-cone plume per individual hole
+    thetaOuter constant 17.0; // Individual plume half-angle (wider under G2
+                              // flash-boiling)
+
+    sizeDistribution {
+      type RosinRammler;
+
+      RosinRammlerDistribution {
+        minValue 1e-06;
+        maxValue 1.65e-04;
+        lambda 16.5e-05; // 20 um characteristic initial droplet size
+        n 3;
+      }
+    }
+  }
+
+  injectionModels {
+    // 8 Symmetric holes on a 0.65 mm radius tip circle, 37 deg from -y axis
+    hole1 {
+      $...holeSettings;
+      position  (0.000650 0.0995 0.000000);
+      direction (0.601815 -0.798636 0.000000);
+    }
+    hole2 {
+      $...holeSettings;
+      position  (0.000460 0.0995 0.000460);
+      direction (0.425548 -0.798636 0.425548);
+    }
+    hole3 {
+      $...holeSettings;
+      position  (0.000000 0.0995 0.000650);
+      direction (0.000000 -0.798636 0.601815);
+    }
+    hole4 {
+      $...holeSettings;
+      position  (-0.000460 0.0995 0.000460);
+      direction (-0.425548 -0.798636 0.425548);
+    }
+    hole5 {
+      $...holeSettings;
+      position  (-0.000650 0.0995 0.000000);
+      direction (-0.601815 -0.798636 0.000000);
+    }
+    hole6 {
+      $...holeSettings;
+      position  (-0.000460 0.0995 -0.000460);
+      direction (-0.425548 -0.798636 -0.425548);
+    }
+    hole7 {
+      $...holeSettings;
+      position  (0.000000 0.0995 -0.000650);
+      direction (0.000000 -0.798636 -0.601815);
+    }
+    hole8 {
+      $...holeSettings;
+      position  (0.000460 0.0995 -0.000460);
+      direction (0.425548 -0.798636 -0.425548);
+    }
+  }
+
+  dispersionModel stochasticDispersionRAS;
+
+  patchInteractionModel standardWallInteraction;
+
+  heatTransferModel RanzMarshall;
+
+  compositionModel singlePhaseMixture;
+
+  // Phase change options:
+  // -liquidEvaporationBoil : Frossling Sherwood correlation +
+  // Zuo-Gomes-Rutland flash-boiling (standard for G2)
+  // -liquidEvaporation     : Pure Frossling evaporation without superheated
+  // flash-boiling
+  phaseChangeModel liquidEvaporationBoil;
+
+  surfaceFilmModel none;
+
+  atomizationModel none;
+
+  // Secondary breakup options: ReitzKHRT, ReitzDiwakar, TAB, ETAB, PilchErdman,
+  // SHF, none
+  breakupModel ReitzKHRT;
+
+  stochasticCollisionModel none;
+
+  radiation off;
+
+  standardWallInteractionCoeffs { type rebound; }
+
+  RanzMarshallCoeffs { BirdCorrection true; }
+
+  singlePhaseMixtureCoeffs {
+    phases (liquid { IC8H18 1; });
+  }
+
+  liquidEvaporationBoilCoeffs {
+    enthalpyTransfer enthalpyDifference;
+
+    activeLiquids (IC8H18);
+  }
+
+  liquidEvaporationCoeffs {
+    enthalpyTransfer enthalpyDifference;
+
+    activeLiquids (IC8H18);
+  }
+
+  ReitzKHRTCoeffs {
+    solveOscillationEq yes;
+    B0 0.61;
+    B1 40;
+    Ctau 1;
+    CRT 0.1;
+    msLimit 0.2;
+    WeberLimit 6;
+  }
+
+  ReitzDiwakarCoeffs {
+    solveOscillationEq yes;
+    Cbag 6;
+    Cb 0.785;
+    Cstrip 0.5;
+    Cs 10;
+  }
+
+  TABCoeffs {
+    y0 0;
+    yDot0 0;
+    Cmu 10;
+    Comega 8;
+    WeCrit 12;
+  }
+}
+
+cloudFunctions {
+  WeberNumber1 { type WeberNumber; }
+
+  ReynoldsNumber1 { type ReynoldsNumber; }
+
+  NusseltNumber1 { type NusseltNumber; }
+
+  HeatTransferCoeff1 { type HeatTransferCoeff; }
+}
+
+// ************************************************************************* //

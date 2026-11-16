@@ -1,0 +1,7 @@
+{
+    "editor.formatOnSave": false,
+    "[cpp]": {
+        "editor.formatOnSave": false
+    }
+}
+

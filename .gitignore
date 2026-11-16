@@ -1,0 +1,23 @@
+# OpenFOAM time directories (keep 0/ and 0.orig/)
+0.[0-9]*/
+[1-9]*/
+
+# Parallel decomposition & mesh
+processor*/
+constant/polyMesh/
+
+# Archived simulation runs
+results_*/
+
+# Logs & post-processing outputs
+log.*
+progress.log
+postProcessing/
+
+# Redundant experimental zip archives (extracted data is tracked)
+ECN_exp_data/*.zip
+
+# Python / OS artifacts
+__pycache__/
+*.pyc
+.DS_Store
